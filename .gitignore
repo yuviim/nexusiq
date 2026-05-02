@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+nexusiq/
+*.egg-info/
+
+# Credentials & sensitive
+*.pem
+*.key
+ca.pem
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+chroma_db/
+chroma/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Temp/test scripts
+test_*.py
+restore_*.py
+seed_*.py
+verify_*.py
+upload_*.py
+create_vs*.py
+fix_*.py
+check_*.py
+discover_*.py
+find_*.py
+load_*.py
+debug_*.py
+cleanup.sh
+
+# JARs and SQL
+*.jar
+*.lua
+*.sql
+
+# OS
+.DS_Store

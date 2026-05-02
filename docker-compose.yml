@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - DB_DSN=${DB_DSN}
+      - SHAREPOINT_SITE_IDS=${SHAREPOINT_SITE_IDS}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8003
+      - SQL_MCP_HOST=0.0.0.0
+      - SQL_MCP_PORT=8002
+      - SQL_MCP_TRANSPORT=sse
+      - SHAREPOINT_MCP_HOST=0.0.0.0
+      - SHAREPOINT_MCP_PORT=8001
+      - SHAREPOINT_MCP_TRANSPORT=sse
+    depends_on:
+      - chromadb
+    volumes:
+      - ./docs:/app/docs
+      - ./nexusiq_sessions.db:/app/nexusiq_sessions.db
+    restart: unless-stopped
+
+  sharepoint_mcp:
+    build: .
+    command: python sharepoint_mcp.py
+    ports:
+      - "8001:8001"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - SHAREPOINT_SITE_IDS=${SHAREPOINT_SITE_IDS}
+      - SHAREPOINT_MCP_HOST=0.0.0.0
+      - SHAREPOINT_MCP_PORT=8001
+      - SHAREPOINT_MCP_TRANSPORT=sse
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8003
+      - DB_DSN=${DB_DSN}
+    depends_on:
+      - chromadb
+    restart: unless-stopped
+
+  sql_mcp:
+    build: .
+    command: python sql_mcp.py
+    ports:
+      - "8002:8002"
+    environment:
+      - DB_DSN=snowflake://yuvishere:Pulsar%4017051984@tcsavgy-vc05902/yuvishere_db/raw?warehouse=yuvishere_wh
+      - SQL_MCP_HOST=0.0.0.0
+      - SQL_MCP_PORT=8002
+      - SQL_MCP_TRANSPORT=sse
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8003
+      - SHAREPOINT_SITE_IDS=${SHAREPOINT_SITE_IDS}
+      - DB_MAX_ROWS=500
+    restart: unless-stopped
+    
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8003:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
