@@ -235,7 +235,7 @@ def list_tables(schema: Optional[str] = None) -> dict:
         # Non-Exasol fallback
         from sqlalchemy import inspect
         inspector = inspect(_engine)
-        schemas   = [schema] if schema else ["public"]
+        schemas   = [schema] if schema else [_engine.url.database or "nexusiq"]
         tables    = []
         for s in schemas:
             try:
