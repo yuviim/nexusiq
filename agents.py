@@ -333,7 +333,7 @@ async def sql_agent_node(state: NexusIQState) -> dict:
                         return None
 
                 schema_results = await asyncio.gather(
-                    *[fetch_one_schema(t) for t in tables[:10]]
+                    *[fetch_one_schema(t) for t in tables[:3]]
                 )
                 schema_context = [r for r in schema_results if r]
                 schema_text    = "\n\n".join(schema_context)
@@ -354,7 +354,8 @@ async def sql_agent_node(state: NexusIQState) -> dict:
                     "- Only SELECT statements\n"
                     "- No subqueries unless necessary\n"
                     "- Always alias columns with descriptive names\n"
-                    "- Always use LOWER() when filtering string status/category columns\n"
+                    "- Use LOWER() when filtering string columns on local tables only, NOT on Virtual Schema tables\n"
+                    "- For SNOWFLAKE_VS columns, filter without LOWER(): SNOWFLAKE_VS.CREDIT_SCORES.RISK_CATEGORY = 'HIGH' not LOWER(...)\n"
                     "- Use conversation history to resolve references\n"
                     "- Respond with ONLY the SQL, no explanation\n"
                     "- IMPORTANT: When using Exasol Virtual Schemas, ALWAYS prefix table names "
@@ -363,7 +364,15 @@ async def sql_agent_node(state: NexusIQState) -> dict:
                     "NEXUSIQ_VS.budget_actuals for MySQL data. "
                     "Use SNOWFLAKE_VS.employees, SNOWFLAKE_VS.customers etc for Snowflake data.\n"
                     "- If the schema_text shows tables with a schema prefix like NEXUSIQ_VS or "
-                    "SNOWFLAKE_VS, always include that prefix in your SQL.\n\n"
+                    "SNOWFLAKE_VS, always include that prefix in your SQL.\n"
+                    "- For Exasol Virtual Schema queries, NEVER query SNOWFLAKE_VS tables directly with WHERE filters as it causes pushdown errors.\n"
+                    "- Instead use these pre-loaded BANKING tables that contain Snowflake data:\n"
+                    "  BANKING.SF_CUSTOMERS (CID, NAME, COUNTRY) - customer profiles from Snowflake\n"
+                    "  BANKING.SF_TEMP (CUSTOMER_ID, RISK_CATEGORY, KYC_STATUS) - credit risk data from Snowflake\n"
+                    "  BANKING.ACCOUNTS (CUSTOMER_ID, BALANCE, STATUS) - local account data\n"
+                    "- For high-risk frozen account queries use: FROM BANKING.SF_TEMP t JOIN BANKING.SF_CUSTOMERS c ON c.CID = t.CUSTOMER_ID JOIN BANKING.ACCOUNTS a ON a.CUSTOMER_ID = TO_NUMBER(t.CUSTOMER_ID) WHERE a.STATUS IN ('FROZEN', 'SUSPENDED')\n"
+                    "e.g. FROM SNOWFLAKE_VS.CUSTOMERS, BANKING.ACCOUNTS WHERE SNOWFLAKE_VS.CUSTOMERS.CUSTOMER_ID = BANKING.ACCOUNTS.CUSTOMER_ID\n"
+                    "ALWAYS prefix every column with full schema.table reference e.g. SNOWFLAKE_VS.CUSTOMERS.NAME not just NAME.\n\n"
                     f"Database schema:\n{schema_text}"
                     f"{rls_note}"
                     f"{history_section}"

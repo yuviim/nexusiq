@@ -800,8 +800,23 @@ async def switch_db_connection(request: SwitchRequest):
             (request.connection_id,)
         ).fetchone()
         con.close()
+        if not row and request.connection_id == 'trino':
+            trino_dsn = "trino://admin@localhost:8080/tpch/sf1"
+            import sql_mcp
+            sql_mcp.update_engine(trino_dsn)
+            import agents
+            agents._schema_cache      = None
+            agents._schema_cache_time = 0.0
+            _db_configs["default"] = {
+                "dsn": trino_dsn, "db_type": "trino",
+                "host": "localhost", "port": 8080,
+                "database": "tpch", "schema": "sf1", "warehouse": None,
+            }
+            logger.info("Switched to Trino (tpch.sf1)")
+            return {"success": True, "db_type": "trino", "database": "tpch", "name": "Trino"}
+
         if not row and request.connection_id == 'exasol_vs':
-            exasol_vs_dsn = "exasol+pyexasol://sys:exasol@18.232.62.176:8563"
+            exasol_vs_dsn = "exasol+pyexasol://yuviex1:NewPassword123@y3n5pmtigrg4xmldfscr5hdu3m.clusters.exasol.com:8563"
             import sql_mcp
             sql_mcp.update_engine(exasol_vs_dsn)
             import agents
@@ -809,7 +824,7 @@ async def switch_db_connection(request: SwitchRequest):
             agents._schema_cache_time = 0.0
             _db_configs["default"] = {
                 "dsn": exasol_vs_dsn, "db_type": "virtual_schema",
-                "host": "18.232.62.176", "port": 8563,
+                "host": "y3n5pmtigrg4xmldfscr5hdu3m.clusters.exasol.com", "port": 8563,
                 "database": "NEXUSIQ_VS,SNOWFLAKE_VS",
                 "schema": None, "warehouse": None,
             }

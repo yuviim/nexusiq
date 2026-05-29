@@ -15,12 +15,12 @@ const getGreeting = () => {
 }
 
 const DB_ICONS = {
-  mysql:      { icon: '🗄️', label: 'MySQL',      color: '#1d9e75' },
-  snowflake:  { icon: '❄️', label: 'Snowflake',  color: '#0891b2' },
-  databricks: { icon: '🧱', label: 'Databricks', color: '#ea580c' },
-  postgresql: { icon: '🐘', label: 'PostgreSQL', color: '#336791' },
-  exasol:     { icon: '⚡', label: 'Exasol',     color: '#6d28d9' },
-  redshift:   { icon: '🔴', label: 'Redshift',   color: '#8c4fff' },
+  mysql:          { icon: '🐬', label: 'MySQL',      color: '#00758f' },
+  snowflake:      { icon: '❄️', label: 'Snowflake',  color: '#0891b2' },
+  databricks:     { icon: '🧱', label: 'Databricks', color: '#ea580c' },
+  postgresql:     { icon: '🐘', label: 'PostgreSQL', color: '#336791' },
+  exasol:         { icon: '⚡', label: 'Exasol',     color: '#6d28d9' },
+  virtual_schema: { icon: '🌐', label: 'Federated',  color: '#6366f1' },
 }
 
 // Which agents were used — parsed from citations/result
@@ -77,10 +77,10 @@ export default function ChatPage({ sessionId, user, initialMessages = [], pendin
   const [streamingMsg, setStreamingMsg] = useState(null)
   const [statusText,   setStatusText]   = useState('')
   const [suggestions,  setSuggestions]  = useState([
-    'Who are the top 5 sales reps?',
-    'What is our remote work policy?',
-    'Which departments are over budget?',
-    'Show active projects',
+    'Show high-risk customers with large transactions',
+    'Which customers have open compliance cases?',
+    'Show fraud scores for high-value accounts',
+    'What is the total revenue by customer segment?',
   ])
   const [sources,      setSources]      = useState({})
   const [dbConfig,     setDbConfig]     = useState(null)

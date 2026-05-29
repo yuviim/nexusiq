@@ -10,7 +10,6 @@ const DB_TYPES = [
   { value: 'databricks', label: 'Databricks', defaultPort: 443,  emoji: '🧱' },
   { value: 'postgresql', label: 'PostgreSQL', defaultPort: 5432, emoji: '🐘' },
   { value: 'exasol',     label: 'Exasol',     defaultPort: 8563, emoji: '⚡' },
-  { value: 'redshift',   label: 'Redshift',   defaultPort: 5439, emoji: '🔴' },
 ]
 
 const PDF_URL = 'http://localhost:8000/docs/NexusIQ_Integration_Setup_Guide.pdf'
@@ -42,7 +41,7 @@ const StatusMsg = ({ status }) => status ? (
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('database')
-  const [dbType,    setDbType]    = useState('mysql')
+  const [dbType,    setDbType]    = useState('exasol')
 
   // Store credentials per DB type separately
   const [dbConfigs,  setDbConfigs]  = useState(() => {
@@ -160,6 +159,8 @@ export default function SettingsPage() {
 
   const isSnowflake   = dbType === 'snowflake'
   const isDatabricks  = dbType === 'databricks'
+  const isTrino       = dbType === 'trino'
+  const isExasol      = dbType === 'exasol'
   const needWarehouse = isSnowflake || isDatabricks
   const canTest = current.host && current.username && current.database
   const canSave = current.host && current.username && current.password && current.database
@@ -242,12 +243,17 @@ export default function SettingsPage() {
                     {activeDbType === dbType ? '● Active' : '○ Saved'}
                   </div>
                 )}
-                <HelpTooltip title="Where to find these details" items={['Host: your DB server hostname or IP', 'Port: MySQL=3306, Snowflake=443, Exasol=8563', 'Snowflake account: e.g. tcsavgy-vc05902', 'Databricks: use workspace URL as host']} link={PDF_URL} />
+                <HelpTooltip title="Where to find these details" items={['Host: your DB server hostname or IP', 'Port: Trino=8080, Snowflake=443, Databricks=443, Exasol=8563', 'Snowflake account: e.g. tcsavgy-vc05902', 'Databricks: use workspace URL as host']} link={PDF_URL} />
               </div>
 
               {isSnowflake && (
                 <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(41,182,246,0.06)', border: '1px solid rgba(41,182,246,0.2)', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
                   ❄️ Use your <strong>account identifier</strong> as host — e.g. <code style={{ color: 'var(--accent)' }}>tcsavgy-vc05902</code>
+                </div>
+              )}
+              {isTrino && (
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(0,148,240,0.06)', border: '1px solid rgba(0,148,240,0.2)', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+                  🔷 Trino federates multiple data sources. Host: <code style={{ color: 'var(--accent)' }}>localhost</code>, Port: <code style={{ color: 'var(--accent)' }}>8080</code>
                 </div>
               )}
               {isDatabricks && (

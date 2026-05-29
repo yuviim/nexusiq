@@ -37,6 +37,26 @@ _WRITE_KEYWORDS = re.compile(
 )
 
 
+
+def _is_trino_dsn(dsn: str) -> bool:
+    return dsn.startswith("trino://")
+
+def _make_trino_conn(dsn: str):
+    import trino
+    # Parse trino://user@host:port/catalog/schema
+    rest = dsn.replace("trino://", "")
+    user_host, path = rest.split("@", 1) if "@" in rest else ("admin", rest)
+    user = user_host
+    parts = path.split("/")
+    host_port = parts[0]
+    catalog = parts[1] if len(parts) > 1 else "tpch"
+    schema = parts[2] if len(parts) > 2 else "sf1"
+    host, port = (host_port.rsplit(":", 1) if ":" in host_port else (host_port, "8080"))
+    return trino.dbapi.connect(
+        host=host, port=int(port), user=user,
+        catalog=catalog, schema=schema,
+    )
+
 def _is_exasol_dsn(dsn: str) -> bool:
     return dsn.startswith("exasol+pyexasol://")
 
@@ -50,6 +70,9 @@ def _parse_exasol_dsn(dsn: str) -> dict:
     host, port = (hostport.rsplit(":", 1) if ":" in hostport else (hostport, "8563"))
     return {"user": user, "password": password, "host": host, "port": int(port)}
 
+
+import threading
+_exasol_lock = threading.Lock()
 
 def _make_exasol_conn(params: dict):
     import pyexasol
@@ -65,12 +88,15 @@ def _make_exasol_conn(params: dict):
 
 def _get_exasol_conn():
     global _exasol
-    try:
-        _exasol.execute("SELECT 1 FROM DUAL")
-    except Exception:
-        logger.info("Exasol connection lost — reconnecting")
-        _exasol = _make_exasol_conn(_exasol_params)
-    return _exasol
+    with _exasol_lock:
+        try:
+            _exasol.execute("SELECT 1 FROM DUAL")
+        except Exception:
+            import time
+            logger.info("Exasol connection lost — reconnecting")
+            time.sleep(1)
+            _exasol = _make_exasol_conn(_exasol_params)
+        return _exasol
 
 
 @asynccontextmanager
@@ -80,7 +106,11 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
     cfg = get_config()
     logger.info("SQL MCP server starting")
 
-    if _is_exasol_dsn(cfg.db_dsn):
+    if _is_trino_dsn(cfg.db_dsn):
+        _engine = _make_trino_conn(cfg.db_dsn)
+        _db_type = "trino"
+        logger.info("Trino connection verified")
+    elif _is_exasol_dsn(cfg.db_dsn):
         _exasol_params = _parse_exasol_dsn(cfg.db_dsn)
         _exasol  = _make_exasol_conn(_exasol_params)
         _db_type = "exasol"
@@ -111,7 +141,8 @@ async def lifespan(server: FastMCP) -> AsyncIterator[None]:
 
     logger.info("SQL MCP server shutting down")
     if _engine:
-        _engine.dispose()
+        try: _engine.dispose()
+        except: pass
     if _exasol:
         try: _exasol.close()
         except: pass
@@ -181,6 +212,21 @@ def _is_safe_sql(sql: str) -> bool:
 def list_tables(schema: Optional[str] = None) -> dict:
     _assert_ready()
     try:
+        if _db_type == "trino":
+            cur = _engine.cursor()
+            cur.execute("SHOW SCHEMAS FROM tpch")
+            schemas = [r[0] for r in cur.fetchall() if r[0] not in ('information_schema',)]
+            tables = []
+            for s in schemas:
+                try:
+                    cur2 = _engine.cursor()
+                    cur2.execute(f"SHOW TABLES FROM tpch.{s}")
+                    for r in cur2.fetchall():
+                        tables.append({"schema": f"tpch.{s}", "table": r[0], "full_name": f"tpch.{s}.{r[0]}", "source": "Trino TPC-H"})
+                except: pass
+            logger.info(f"list_tables (trino): {len(tables)} tables found")
+            return {"tables": tables, "total": len(tables), "note": "Use tpch.sf1.tablename in queries"}
+
         if _db_type == "exasol":
             exa = _get_exasol_conn()
 
@@ -258,6 +304,31 @@ def list_tables(schema: Optional[str] = None) -> dict:
 def get_schema(table: str, schema: Optional[str] = None) -> dict:
     _assert_ready()
     try:
+        if _db_type == "trino":
+            # For Trino use 3-part naming: catalog.schema.table
+            parts = table.split(".")
+            if len(parts) == 3:
+                catalog, schema_name, tbl = parts
+            elif len(parts) == 2:
+                schema_name, tbl = parts
+                catalog = "tpch"
+            else:
+                tbl = table
+                schema_name = (schema or "sf1").split(".")[-1]
+                catalog = "tpch"
+            cur = _engine.cursor()
+            cur.execute(f"DESCRIBE {catalog}.{schema_name}.{tbl}")
+            rows = cur.fetchall()
+            columns = [{"name": r[0], "type": r[1], "nullable": True} for r in rows]
+            return {
+                "table": tbl,
+                "schema": f"{catalog}.{schema_name}",
+                "full_name": f"{catalog}.{schema_name}.{tbl}",
+                "columns": columns,
+                "primary_keys": [],
+                "foreign_keys": []
+            }
+
         if _db_type == "exasol":
             exa = _get_exasol_conn()
 
@@ -266,22 +337,33 @@ def get_schema(table: str, schema: Optional[str] = None) -> dict:
             table_upper = table.upper()
 
             rows = exa.execute(
-                "SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_IS_NULLABLE "
-                "FROM SYS.EXA_ALL_VIRTUAL_COLUMNS "
-                "WHERE SCHEMA_NAME = ? AND TABLE_NAME = ? "
-                "ORDER BY COLUMN_ORDINAL_POSITION",
-                [vs_schema, table_upper]
-            ).fetchall()
-
-            if not rows:
-                # Fallback to regular EXA_ALL_COLUMNS
-                rows = exa.execute(
-                    "SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_IS_NULLABLE "
-                    "FROM EXA_ALL_COLUMNS "
-                    "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? "
-                    "ORDER BY ORDINAL_POSITION",
-                    [vs_schema, table_upper]
+                    f"SELECT COLUMN_NAME, ADAPTER_NOTES "
+                    f"FROM SYS.EXA_ALL_VIRTUAL_COLUMNS "
+                    f"WHERE UPPER(COLUMN_SCHEMA) = '{vs_schema}' AND UPPER(COLUMN_TABLE) = '{table_upper}'"
                 ).fetchall()
+            # Map to standard format
+            if rows:
+                columns = [{"name": r[0], "type": "VARCHAR", "nullable": True} for r in rows]
+                return {
+                    "table": table_upper,
+                    "schema": vs_schema,
+                    "full_name": f"{vs_schema}.{table_upper}",
+                    "columns": columns,
+                    "primary_keys": [],
+                    "foreign_keys": [],
+                    "source": VIRTUAL_SCHEMAS.get(vs_schema, "Virtual Schema")
+                }
+            if not rows:
+                try:
+                    rows = exa.execute(
+                        f"SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_IS_NULLABLE "
+                        f"FROM SYS.EXA_ALL_COLUMNS "
+                        f"WHERE UPPER(TABLE_SCHEMA) = '{vs_schema}' AND UPPER(TABLE_NAME) = '{table_upper}' "
+                        f"ORDER BY ORDINAL_POSITION"
+                    ).fetchall()
+                    columns = [{"name": r[0], "type": r[1], "nullable": r[2] == "Y"} for r in rows]
+                except Exception:
+                    columns = []
 
             columns = [{"name": r[0], "type": r[1], "nullable": r[2] == "Y"} for r in rows]
             return {
@@ -323,6 +405,8 @@ def explain_query(sql: str) -> dict:
     if not _is_safe_sql(sql):
         return {"safe": False, "reason": "Query contains write operations which are not permitted", "sql": sql}
     try:
+        if _db_type == "trino":
+            return {"safe": True, "plan": [{"note": "Trino query validated — ready to execute"}], "sql": sql}
         if _db_type == "exasol":
             return {"safe": True, "plan": [{"note": "Exasol query validated — ready to execute"}], "sql": sql}
         with _engine.connect() as conn:
@@ -346,6 +430,17 @@ def execute_query(sql: str) -> dict:
     if not _is_safe_sql(sql):
         return {"error": True, "message": "Query contains write operations which are not permitted"}
     try:
+        if _db_type == "trino":
+            cur = _engine.cursor()
+            cur.execute(sql)
+            cols = [d[0] for d in cur.description]
+            rows = []
+            for i, row in enumerate(cur.fetchall()):
+                if i >= cfg.db_max_rows: break
+                rows.append(dict(zip(cols, [str(v) if v is not None else None for v in row])))
+            logger.info(f"execute_query (trino): {len(rows)} rows returned")
+            return {"columns": cols, "rows": rows, "row_count": len(rows), "capped": len(rows) == cfg.db_max_rows}
+
         if _db_type == "exasol":
             exa  = _get_exasol_conn()
             stmt = exa.execute(sql)
