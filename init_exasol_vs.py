@@ -32,7 +32,7 @@ run('Snowflake adapter', """CREATE OR REPLACE JAVA ADAPTER SCRIPT ADAPTER.SNOWFL
 run('MySQL connection', """CREATE OR REPLACE CONNECTION AIVEN_MYSQL
   TO 'jdbc:mysql://mysql-41c9e36-yuvarajm3119-46ea.c.aivencloud.com:22592/defaultdb?sslMode=REQUIRED'
   USER 'avnadmin'
-  IDENTIFIED BY 'AVNS_Q3qPiGt_DX-NXVyo-L2'""")
+  IDENTIFIED BY '***REMOVED***'""")
 
 run('Snowflake connection', """CREATE OR REPLACE CONNECTION SNOWFLAKE_CONN
   TO 'jdbc:snowflake://VSMHCHE-UC35569.snowflakecomputing.com/?db=SNOWFLAKE_SAMPLE_DATA&schema=TPCH_SF1&warehouse=COMPUTE_WH'
