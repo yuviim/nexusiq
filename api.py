@@ -800,6 +800,38 @@ async def switch_db_connection(request: SwitchRequest):
             (request.connection_id,)
         ).fetchone()
         con.close()
+        if not row and request.connection_id == 'exasol':
+            import sql_mcp as sm
+            exasol_dsn = 'exasol+pyexasol://yuviex1:NewPassword123@y3n5pmtigrg4xmldfscr5hdu3m.clusters.exasol.com:8563'
+            sm.update_engine(exasol_dsn)
+            import agents
+            agents._schema_cache      = None
+            agents._schema_cache_time = 0.0
+            _db_configs['default'] = {
+                'dsn': exasol_dsn, 'db_type': 'exasol',
+                'host': 'y3n5pmtigrg4xmldfscr5hdu3m.clusters.exasol.com', 'port': 8563,
+                'database': 'BANKING', 'schema': None, 'warehouse': None,
+            }
+            logger.info('Switched to Exasol SaaS')
+            return {'success': True, 'db_type': 'exasol', 'database': 'BANKING', 'name': 'Exasol'}
+
+        if not row and request.connection_id == 'snowflake':
+            import sql_mcp as sm
+            import os
+            sf_pwd = os.getenv('SNOWFLAKE_PASSWORD', 'Pulsar%4017051984')
+            snowflake_dsn = f'snowflake://YUVARAJM:{sf_pwd}@UTKFXQT-HC73107/NEXUSIQ_DB/PUBLIC?warehouse=nexusiq'
+            sm.update_engine(snowflake_dsn)
+            import agents
+            agents._schema_cache      = None
+            agents._schema_cache_time = 0.0
+            _db_configs['default'] = {
+                'dsn': snowflake_dsn, 'db_type': 'snowflake',
+                'host': 'UTKFXQT-HC73107', 'port': 443,
+                'database': 'NEXUSIQ_DB', 'schema': 'PUBLIC', 'warehouse': 'nexusiq',
+            }
+            logger.info('Switched to Snowflake')
+            return {'success': True, 'db_type': 'snowflake', 'database': 'NEXUSIQ_DB', 'name': 'Snowflake'}
+
         if not row and request.connection_id == 'trino':
             trino_dsn = "trino://admin@localhost:8080/tpch/sf1"
             import sql_mcp

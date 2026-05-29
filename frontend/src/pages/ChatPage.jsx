@@ -15,12 +15,13 @@ const getGreeting = () => {
 }
 
 const DB_ICONS = {
-  mysql:          { icon: '🐬', label: 'MySQL',      color: '#00758f' },
-  snowflake:      { icon: '❄️', label: 'Snowflake',  color: '#0891b2' },
-  databricks:     { icon: '🧱', label: 'Databricks', color: '#ea580c' },
-  postgresql:     { icon: '🐘', label: 'PostgreSQL', color: '#336791' },
-  exasol:         { icon: '⚡', label: 'Exasol',     color: '#6d28d9' },
-  virtual_schema: { icon: '🌐', label: 'Federated',  color: '#6366f1' },
+  mysql:          { icon: '🐬', label: 'MySQL',               color: '#00758f' },
+  snowflake:      { icon: '❄️', label: 'Snowflake',           color: '#0891b2' },
+  databricks:     { icon: '🧱', label: 'Databricks',          color: '#ea580c' },
+  postgresql:     { icon: '🐘', label: 'PostgreSQL',          color: '#336791' },
+  exasol:         { icon: '⚡', label: 'Exasol',              color: '#6d28d9' },
+  virtual_schema: { icon: '🌐', label: 'Exasol Virtual Schema', color: '#6366f1' },
+  trino:          { icon: '🔷', label: 'Trino',               color: '#0094F0' },
 }
 
 // Which agents were used — parsed from citations/result
@@ -103,7 +104,7 @@ export default function ChatPage({ sessionId, user, initialMessages = [], pendin
       } catch {}
     }
     load()
-    const id = setInterval(load, 30000)
+    const id = setInterval(load, 10000)
     return () => clearInterval(id)
   }, [])
 
@@ -197,7 +198,7 @@ export default function ChatPage({ sessionId, user, initialMessages = [], pendin
         {/* Sources bar */}
         <div style={{ padding: '5px 24px 9px', display: 'flex', alignItems: 'center', gap: 7, borderTop: '1px solid #f3f4f6', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: 4 }}>Connected:</span>
-          {dbInfo && <SourcePill icon={dbInfo.icon} label={`${dbInfo.label} · ${dbConfig?.database}`} color={dbInfo.color} active={!!sources.sql} />}
+          {dbInfo && <SourcePill icon={dbInfo.icon} label={dbConfig?.db_type === 'virtual_schema' ? 'Federated · NEXUSIQ_VS · SNOWFLAKE_VS' : `${dbInfo.label} · ${dbConfig?.database}`} color={dbInfo.color} active={!!sources.sql} />}
           <SourcePill icon="📄" label="SharePoint" color="#0078d4" active={!!sources.sharepoint} />
           <SourcePill icon="🔍" label="ChromaDB" color="#7c3aed" active={!!sources.chromadb} />
         </div>
